@@ -31,6 +31,8 @@ def to_documents(df: pd.DataFrame):
                      })
         )
 
+        print("[-] Inserted docs looks something like ...", docs)
+
     return docs
 
 

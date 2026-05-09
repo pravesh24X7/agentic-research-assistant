@@ -19,9 +19,9 @@ def process_chunk(chunk: pd.DataFrame) -> pd.DataFrame:
     cs_rows = chunk[chunk['categories'].str.contains(PATTERN,
                                                       regex=True,
                                                       na=False)][FIELDS_TO_KEEP].copy()
-    cs_rows['license'] = chunk['license'].fillna('')
-    cs_rows['title'] = chunk['title'].fillna('')
-    cs_rows['abstract'] = chunk['abstract'].fillna('')
+    cs_rows['license'] = cs_rows['license'].fillna('')
+    cs_rows['title'] = cs_rows['title'].fillna('')
+    cs_rows['abstract'] = cs_rows['abstract'].fillna('')
     cs_rows['update_date'] = pd.to_datetime( cs_rows[ 'update_date'], errors='coerce' )
 
     return cs_rows
