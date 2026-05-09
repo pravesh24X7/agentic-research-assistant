@@ -34,7 +34,7 @@ def load_efficiently(filepath: str):
     
     for chunk in pd.read_json(filepath,
                               lines=True,
-                              chunksize=100_000):
+                              chunksize=1000):
         processed = process_chunk(chunk)
 
         if not processed.empty:
