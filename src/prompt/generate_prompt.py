@@ -3,14 +3,12 @@ from langchain_core.prompts import PromptTemplate
 from src.config.settings import SAVE_PROMPT_TO
 
 
-template="""
-    You're an helpful assistant, Solve user query.
-    \n\n
-    Query:{query}
-"""
-
-
-def create_prompt(name: str):
+def base_prompt(name: str):
+    template="""
+        You're an helpful assistant, Solve user query.
+        \n\n
+        Query:{query}
+    """
     base_prompt = PromptTemplate(template=template,
                                 input_variables=['query'],
                                 validate_template=True)
