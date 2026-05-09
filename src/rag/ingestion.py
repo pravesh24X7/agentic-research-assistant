@@ -4,7 +4,8 @@ from langchain_chroma import Chroma
 from langchain_core.documents import Document
 
 from src.data.data_loading import load_efficiently
-from src.embedding.embedding_model import get_model
+from src.config.settings import COLLECTION_NAME
+from src.utils.logger import get_logger
 
 
 def to_documents(df: pd.DataFrame):
@@ -24,24 +25,22 @@ def to_documents(df: pd.DataFrame):
         docs.append(
             Document(page_content=row.text,
                      metadata={
-                         'id': row.id,
+                         'id': str(row.id),
                          'category': row.categories,
                          'update_date': str(row.update_date),
                          'license': row.license
                      })
         )
 
-        print("[-] Inserted docs looks something like ...", docs)
-
     return docs
 
 
 def create_vector_store(storepath: str, filepath: str, embedding_model):
-    
+
     vector_store = Chroma(
             embedding_function=embedding_model,
             persist_directory=storepath,
-            collection_name="ai_ml"
+            collection_name=COLLECTION_NAME
         )
     
     for chunk in load_efficiently(filepath=filepath):
