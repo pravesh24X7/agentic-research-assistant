@@ -1,6 +1,7 @@
 import json
 from langchain_core.prompts import load_prompt
 from langchain_core.output_parsers import PydanticOutputParser
+from langsmith import traceable
 
 from src.rag.retriever import get_retriever
 from src.graphs.state import AgentState
@@ -10,6 +11,7 @@ from src.model.cirtique_structure import CritiqueStructure
 from src.config.settings import SAVE_PROMPT_TO
 
 
+@traceable(name='retrieval_node', metadata={"stage": "evaluation"})
 def retriever(state: AgentState) -> dict:
     retriever = get_retriever()
     result = retriever.invoke(state['query'])
@@ -18,13 +20,19 @@ def retriever(state: AgentState) -> dict:
     }
     
     
-
+@traceable(name='summary_node', metadata={"stage": "evaluation"})
 def summary(state: AgentState) -> dict:
     execution_chain = chain(f'{SAVE_PROMPT_TO}/summary_prompt.json')
 
     result = execution_chain.invoke({
         "query": state['query'],
-        "retrieved_docs": state["retrieved_docs"]
+        "retrieved_docs": state["retrieved_docs"], 
+    },
+    config={
+        'tags': ['summary',],
+        'metadata': {
+            'iterations': state['iterations']
+        }
     })
 
     return {
@@ -33,7 +41,7 @@ def summary(state: AgentState) -> dict:
     }
     
 
-
+@traceable(name='critique_node', metadata={"stage": "evaluation"})
 def critique(state: AgentState) -> dict:
     prompt = load_prompt(f'{SAVE_PROMPT_TO}/critique_prompt.json')
 
@@ -46,6 +54,12 @@ def critique(state: AgentState) -> dict:
         'query': state['query'],
         'draft_answer': state['draft_answer'][-1],
         'instructions': parser.get_format_instructions(),
+    },
+    config={
+        'tags': ['critique'],
+        'metadata': {
+            'iterations': state['iterations']
+        }
     })
     
     return {
@@ -54,6 +68,7 @@ def critique(state: AgentState) -> dict:
     }
 
 
+@traceable(name='synthesiser_node', metadata={"stage": "evaluation"})
 def synthesiser(state: AgentState) -> dict:
 
     execution_chain = chain(f'{SAVE_PROMPT_TO}/synthesiser_prompt.json')
@@ -62,6 +77,11 @@ def synthesiser(state: AgentState) -> dict:
         'query': state['query'],
         'draft_answer': state['draft_answer'][-1],
         'critique': state['critique']
+    }, config={
+        'tags': ['synthesiser'],
+        'metadata': {
+            'iterations': state['iterations']
+        }
     })
 
     return {
@@ -70,6 +90,7 @@ def synthesiser(state: AgentState) -> dict:
     }
 
 
+@traceable(name='final_answer_node', metadata={"stage": "evaluation"})
 def generate_final_answer(state: AgentState) -> dict:
 
     execution_chain = chain(f'{SAVE_PROMPT_TO}/base_prompt.json')

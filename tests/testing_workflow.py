@@ -52,7 +52,7 @@ def main():
     initial_state = {
         'query': "Attention mechansim in Vision Transformer",
         'max_iterations': 5,
-        'iterations': 0
+        'iterations': 1
     }
     
     for message_chunk, metadata in workflow.stream(initial_state, config=CONFIG, stream_mode="messages"):

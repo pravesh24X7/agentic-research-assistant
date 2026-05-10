@@ -17,9 +17,9 @@ def get_retriever():
         search_kwargs={'k': 10, 'fetch_k': 25}
     )
 
-    llm  = llm_model()
-    compressor = LLMChainExtractor.from_llm(llm=llm)
-    compression_retriever = ContextualCompressionRetriever(base_retriever=retriever,
-                                                           base_compressor=compressor)
+    # llm  = llm_model()
+    # compressor = LLMChainExtractor.from_llm(llm=llm)
+    # compression_retriever = ContextualCompressionRetriever(base_retriever=retriever,
+    #                                                        base_compressor=compressor)
     
-    return compression_retriever
+    return retriever
