@@ -1,0 +1,17 @@
+{
+    "name": null,
+    "input_variables": [
+        "critique",
+        "draft_answer",
+        "query"
+    ],
+    "optional_variables": [],
+    "output_parser": null,
+    "partial_variables": {},
+    "metadata": null,
+    "tags": null,
+    "template": "\n    You are a senior research scientist writing a final answer.\n\nOriginal question: {query}\n\nA junior researcher wrote this draft:\n{draft_answer}\n\nA reviewer gave this critique:\n{critique}\n\nYour job: Write a final, polished answer that:\n- Directly answers the question\n- Fixes all issues raised in the critique\n- Is clear and well-structured\n- Stays grounded in the research evidence\n- Is 200-250 words maximum\n\nDo NOT mention the draft or critique in your answer. \nJust write the final answer directly.\n    ",
+    "template_format": "f-string",
+    "validate_template": true,
+    "_type": "prompt"
+}

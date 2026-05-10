@@ -5,7 +5,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 
 from src.graphs.state import AgentState
 from src.graphs.edges import build_edges
-from src.graphs.nodes import retriever, summary, critique, synthesiser
+from src.graphs.nodes import retriever, summary, critique, synthesiser, generate_final_answer
 from src.config.settings import DB_NAME
 
 
@@ -17,6 +17,7 @@ def build_graph():
     graph.add_node('summary', summary)
     graph.add_node('critique', critique)
     graph.add_node('synthesiser', synthesiser)
+    graph.add_node('final_answer', generate_final_answer)
 
     build_edges(graph=graph)
 

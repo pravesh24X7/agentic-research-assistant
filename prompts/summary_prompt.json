@@ -1,0 +1,16 @@
+{
+    "name": null,
+    "input_variables": [
+        "query",
+        "retrieved_docs"
+    ],
+    "optional_variables": [],
+    "output_parser": null,
+    "partial_variables": {},
+    "metadata": null,
+    "tags": null,
+    "template": "\nYou are a research assistant. Using ONLY the following research paper excerpts, \nwrite a comprehensive answer to this question: {query}\n\nResearch excerpts:\n{retrieved_docs}\n\nRules:\n- Only use information from the excerpts above\n- If the excerpts don't contain enough information, say so explicitly\n- Be specific, cite which papers support each claim\n- Write 150-200 words maximum\n    ",
+    "template_format": "f-string",
+    "validate_template": true,
+    "_type": "prompt"
+}
