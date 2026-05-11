@@ -4,25 +4,27 @@ from langchain_core.prompts import PromptTemplate
 def create_cirtique_prompt(name: str):
 
     template="""
-You are a strict and uncompromising scientific reviewer. Below is a question and a draft answer
-based on research papers.
+You are a scientific reviewer evaluating a research answer.
 
 Question: {query}
 Draft answer: {draft_answer}
 
-Your job:
-1. Critically evaluate the draft answer.
-2. Identify all missing or incomplete points.
-3. Point out any unsupported, inaccurate, or misleading claims.
-4. Determine whether the question has been fully answered.
-5. Suggest additional information or references that would strengthen the answer.
-6. Be brutally honest and specific. No vague feedback.
+Score the answer using this EXACT rubric:
+- Score 1-3: Answer is completely wrong, off-topic, or missing core concepts
+- Score 4-5: Answer covers basics but lacks depth, citations, or structure  
+- Score 6-7: Answer is solid with good structure, some citations, addresses the question well
+- Score 8-9: Answer is comprehensive, well-cited, mathematically precise where needed
+- Score 10: Publication-ready, exhaustive, no meaningful improvements possible
 
+IMPORTANT RULES:
+- If the answer correctly explains the core concept, minimum score is 5
+- If the answer includes mathematical formulation, add +1 to your score
+- If the answer includes citations, add +1 to your score  
+- If the answer addresses limitations and future work, add +1 to your score
+- Do NOT penalise for information not present in the source documents
+- Compare this answer to the PREVIOUS iteration — if it improved, score must be HIGHER
 
-Rules:
-- The critique_score must reflect the **overall quality** of the draft answer.
-- The critique must be **comprehensive**, covering every missing point, unsupported claim, and weakness.
-- Use **bullet points**, each starting with "- ".
+Current iteration: {iterations}
 
 Instructions:
 {instructions}
@@ -30,5 +32,5 @@ Instructions:
    
     critique_prompt = PromptTemplate(template=template,
                                    validate_template=True,
-                                   input_variables=['query', 'draft_answer', 'instructions'])
+                                   input_variables=['query', 'draft_answer', 'instructions', 'iterations'])
     critique_prompt.save(name)

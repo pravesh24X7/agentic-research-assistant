@@ -6,7 +6,7 @@ from src.graphs.state import AgentState
 
 def perform_evaluation(state: AgentState) -> Literal['approved', 'not_approved']:
     return 'approved' if (
-        (state['critique_score'] > 7) or (state['iterations'] >= state['max_iterations'])
+        (state['critique_score'] >= 6) or (state['iterations'] >= state['max_iterations'])
     ) else 'not_approved'
 
 

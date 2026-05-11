@@ -1,4 +1,6 @@
 import json
+import time
+
 from langchain_core.prompts import load_prompt
 from langchain_core.output_parsers import PydanticOutputParser
 from langsmith import traceable
@@ -12,13 +14,21 @@ from src.config.settings import SAVE_PROMPT_TO
 
 
 @traceable(name='retrieval_node', metadata={"stage": "evaluation"})
+# def retriever(state: AgentState) -> dict:
+#     retriever = get_retriever()
+#     result = retriever.invoke(state['query'])
+#     return {
+#         'retrieved_docs': [ doc.page_content for doc in result ]
+#     }
+
+# in retriever node
 def retriever(state: AgentState) -> dict:
-    retriever = get_retriever()
-    result = retriever.invoke(state['query'])
-    return {
-        'retrieved_docs': [ doc.page_content for doc in result ]
-    }
-    
+    start = time.time()
+    r = get_retriever()
+    docs = r.invoke(state['query'])
+    print(f"Retriever took: {time.time()-start:.2f}s")
+    return {'retrieved_docs': [doc.page_content for doc in docs]}
+
     
 @traceable(name='summary_node', metadata={"stage": "evaluation"})
 def summary(state: AgentState) -> dict:
@@ -37,13 +47,14 @@ def summary(state: AgentState) -> dict:
 
     return {
         'draft_answer': [str(result)],
-        'iterations': state['iterations'] + 1
     }
     
 
 @traceable(name='critique_node', metadata={"stage": "evaluation"})
 def critique(state: AgentState) -> dict:
     prompt = load_prompt(f'{SAVE_PROMPT_TO}/critique_prompt.json')
+
+    history = state.get('critique_score_history', [])
 
     parser = PydanticOutputParser(pydantic_object=CritiqueStructure)
 
@@ -53,6 +64,7 @@ def critique(state: AgentState) -> dict:
     result = execution_chain.invoke({
         'query': state['query'],
         'draft_answer': state['draft_answer'][-1],
+        'iterations': state['iterations'],
         'instructions': parser.get_format_instructions(),
     },
     config={
@@ -64,7 +76,8 @@ def critique(state: AgentState) -> dict:
     
     return {
         'critique_score': result.critique_score,
-        'critique': result.critique
+        'critique': result.critique,
+        'critique_score_history': [result.critique_score]
     }
 
 
@@ -93,38 +106,6 @@ def synthesiser(state: AgentState) -> dict:
 @traceable(name='final_answer_node', metadata={"stage": "evaluation"})
 def generate_final_answer(state: AgentState) -> dict:
 
-    execution_chain = chain(f'{SAVE_PROMPT_TO}/base_prompt.json')
-
-    query = f"""
-You are an expert scientific analyst tasked with producing a comprehensive, rigorous report. Below is the context for your analysis:
-
-Context: {state['retrieved_docs']}
-phrase: {state['draft_answer'][-1]}
-
-Your job:
-1. Carefully analyze the provided context and extract all relevant information.
-2. Use appropriate scientific reasoning and, if necessary, **mathematical notations, formulas, or derivations**.
-3. If helpful, create **visualizations**, **tables**, or **diagrams** to clarify relationships or results.
-4. Identify any gaps, inconsistencies, or assumptions in the context.
-5. Summarize intermediate findings clearly and logically.
-6. Integrate all information into a **final, well-supported answer** to the question.
-
-Requirements:
-- Be thorough and precise; assume the audience is a knowledgeable expert.
-- When using mathematics, ensure equations are correctly formatted and labeled.
-- Tables or visualizations should have clear titles, labels, and units if applicable.
-- The final answer should be concise, definitive, and clearly highlighted at the end under "Final Answer".
-
-Output Format:
-1. Analysis and Reasoning: Provide step-by-step analysis and discussion.
-2. Optional Visualizations/Tables: Include any figures, plots, or tables that aid understanding.
-3. Final Answer: Clearly state the final conclusion or solution.
-"""
-
-    result = execution_chain.invoke({
-        'query': query
-    })
-
     return {
-        'final_answer': result
+        'final_answer': state['draft_answer'][-1]
     }

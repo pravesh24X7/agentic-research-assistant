@@ -8,6 +8,7 @@ class AgentState(TypedDict):
     draft_answer: Annotated[list[str], operator.add]
     critique: str
     critique_score: float
+    critique_score_history: Annotated[list[float], operator.add]
     final_answer: str
     iterations: int
     max_iterations: int

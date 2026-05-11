@@ -25,6 +25,13 @@ def main():
     logger = get_logger()
     logger.debug('\n\n[*] Begin Execution ...')
 
+    logger.debug("Pre-warming retriever and LLM...")
+    from src.rag.retriever import get_vector_store
+    from src.model.chat_model import llm_model
+    get_vector_store()   # loads ChromaDB + embedding model into lru_cache
+    llm_model()          # initialises Groq connection
+    logger.debug("Pre-warming complete.")
+
     if not os.path.exists(SAVE_PROMPT_TO):
         os.makedirs(SAVE_PROMPT_TO)
 
@@ -50,9 +57,9 @@ def main():
     workflow = build_graph()
 
     initial_state = {
-        'query': "Attention mechansim in Vision Transformer",
+        'query': "Attention mechanism in Vision Transformer",
         'max_iterations': 5,
-        'iterations': 1
+        'iterations': 0
     }
     
     for message_chunk, metadata in workflow.stream(initial_state, config=CONFIG, stream_mode="messages"):
