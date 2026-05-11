@@ -19,4 +19,5 @@ def build_edges(graph):
                                    'approved': 'final_answer',
                                    'not_approved': 'synthesiser'
                                })
+    graph.add_edge('synthesiser', 'critique')
     graph.add_edge('final_answer', END)

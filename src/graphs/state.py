@@ -4,7 +4,7 @@ from typing import TypedDict, Annotated
 
 class AgentState(TypedDict):
     query: str
-    retrieved_docs: Annotated[list[str], operator.add]
+    retrieved_docs: list[str]
     draft_answer: Annotated[list[str], operator.add]
     critique: str
     critique_score: float

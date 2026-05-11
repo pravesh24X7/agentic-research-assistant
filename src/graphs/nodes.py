@@ -7,7 +7,7 @@ from src.rag.retriever import get_retriever
 from src.graphs.state import AgentState
 from src.model.execution_chain import chain
 from src.model.chat_model import llm_model
-from src.model.cirtique_structure import CritiqueStructure
+from src.model.critique_structure import CritiqueStructure
 from src.config.settings import SAVE_PROMPT_TO
 
 
@@ -36,7 +36,7 @@ def summary(state: AgentState) -> dict:
     })
 
     return {
-        'draft_answer': [result],
+        'draft_answer': [str(result)],
         'iterations': state['iterations'] + 1
     }
     
