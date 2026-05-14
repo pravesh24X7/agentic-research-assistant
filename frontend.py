@@ -285,16 +285,17 @@ def handle_query(query, backend):
         if tags:
             st.markdown("".join(tags), unsafe_allow_html=True)
 
-        try:
-            log_to_bigquery(
-                query=query,
-                latency_ms=round((end - start) * 1000, 2),
-                critique_score=critique_score,
-                iterations=iterations,
-                final_answer=full_text
-            )
-        except Exception as e:
-            print(f"BigQuery logging failed: {e}")
+        # logging to GCP BQ intentionally stopped, easily for deployment
+        # try:
+        #     log_to_bigquery(
+        #         query=query,
+        #         latency_ms=round((end - start) * 1000, 2),
+        #         critique_score=critique_score,
+        #         iterations=iterations,
+        #         final_answer=full_text
+        #     )
+        # except Exception as e:
+        #     print(f"BigQuery logging failed: {e}")
 
     st.session_state.display_messages.append({
         "role": "assistant",
