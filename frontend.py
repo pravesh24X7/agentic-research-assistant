@@ -31,6 +31,9 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+import time
+from src.utils.bq_logger import log_to_bigquery
+
 
 def inject_css():
     st.markdown("""
@@ -248,8 +251,10 @@ def handle_query(query, backend):
     with st.chat_message("assistant"):
         slot = st.empty()
         tokens = []
+        start = time.time()
+
         try:
-            for token in backend.stream_response(
+            for token in backend.stream_response(    # ← back to single value
                 session, query,
                 max_iterations=st.session_state.max_iterations,
             ):
@@ -260,23 +265,42 @@ def handle_query(query, backend):
             st.code(traceback.format_exc())
             return
 
+        end = time.time()
         full_text = "".join(tokens)
         slot.markdown(full_text)
 
-        final_msg = session.messages[-1]
+        final_state = backend.workflow.get_state(
+            session.config
+        ).values
+
+        critique_score = final_state.get("critique_score", 0)
+        iterations     = final_state.get("iterations", 1)
+        draft_count    = len(final_state.get("draft_answer", []))
+
         tags = []
-        if final_msg.iterations is not None:
-            tags.append(f'<span class="meta-tag">Iterations: {final_msg.iterations}</span>')
-        if final_msg.draft_count is not None:
-            tags.append(f'<span class="meta-tag">Drafts: {final_msg.draft_count}</span>')
+        if iterations is not None:
+            tags.append(f'<span class="meta-tag">Iterations: {iterations}</span>')
+        if draft_count:
+            tags.append(f'<span class="meta-tag">Drafts: {draft_count}</span>')
         if tags:
             st.markdown("".join(tags), unsafe_allow_html=True)
+
+        try:
+            log_to_bigquery(
+                query=query,
+                latency_ms=round((end - start) * 1000, 2),
+                critique_score=critique_score,
+                iterations=iterations,
+                final_answer=full_text
+            )
+        except Exception as e:
+            print(f"BigQuery logging failed: {e}")
 
     st.session_state.display_messages.append({
         "role": "assistant",
         "content": full_text,
-        "iterations": final_msg.iterations,
-        "draft_count": final_msg.draft_count,
+        "iterations": iterations,
+        "draft_count": draft_count,
     })
 
 

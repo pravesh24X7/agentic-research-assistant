@@ -219,4 +219,5 @@ __marimo__/
 data/
 notes/
 vector_store/
-db/
+pyproject.toml
+poetry.lock

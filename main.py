@@ -1,4 +1,5 @@
 import os
+import time
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -7,6 +8,7 @@ from contextlib import asynccontextmanager
 from src.graphs.main_graph import build_graph
 from src.utils.generate_uuid import get_unique_id
 from src.utils.logger import get_logger
+from src.utils.bq_logger import log_to_bigquery
 
 from src.prompt.critique_prompt import create_cirtique_prompt
 from src.prompt.summarizer_prompt import create_summary_prompt
@@ -111,12 +113,25 @@ async def run_research(request: QueryRequest):
 
         streamed_output = []
 
+        start = time.time()
+
         # stream workflow response
         for message_chunk, _ in workflow.stream(initial_state, config=config, stream_mode='messages'):
             if message_chunk.content:
                 streamed_output.append(message_chunk.content)
         
         final_state = workflow.get_state(config=config).values
+
+        latency_ms = (time.time() - start) * 1000
+
+        log_to_bigquery(
+            query=request.question,
+            latency_ms=latency_ms,
+            critique_score=final_state.get("critique_score", 0),
+            iterations=final_state.get("iterations", 0),
+            final_answer=final_state.get("final_answer", "")
+        )
+
         return {
             'thread_id': unique_id,
             'query': request.query,

@@ -28,7 +28,8 @@ dependencies = [
     "uvicorn",
     "python-dotenv",
     "tqdm",
-    "sqlite-utils"
+    "sqlite-utils",
+    "google-cloud-bigquery",
 ]
 
 
