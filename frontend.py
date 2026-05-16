@@ -314,20 +314,30 @@ def set_uploaded_files(paths: list[str]):
 
 # ─── Document upload helpers ──────────────────────────────────────────────────
 
-ALLOWED_EXTENSIONS = ["pdf"]
+ALLOWED_EXTENSIONS = ["pdf", "txt", "md", "docx", "csv", "json", "html"]
 
 
 def save_uploaded_files(uploaded_file_objects) -> list[str]:
     """
-    Persist Streamlit UploadedFile objects to UPLOAD_DIRECTORY.
+    Persist Streamlit UploadedFile objects to a writable temp directory.
+
+    Using tempfile.gettempdir() instead of UPLOAD_DIRECTORY guarantees
+    write access on Streamlit Cloud (and any other host) where the repo
+    directory is mounted read-only.  Each file is written with its
+    original name so downstream loaders can detect the extension.
+
     Returns list of saved absolute file paths.
     """
-    os.makedirs(UPLOAD_DIRECTORY, exist_ok=True)
+    import tempfile
+    save_dir = os.path.join(tempfile.gettempdir(), "research_agent_uploads")
+    os.makedirs(save_dir, exist_ok=True)
     saved_paths = []
     for uf in uploaded_file_objects:
-        dest = os.path.join(UPLOAD_DIRECTORY, uf.name)
-        with open(dest, "wb") as f:
-            f.write(uf.getbuffer())
+        dest = os.path.join(save_dir, uf.name)
+        # uf.getvalue() reads the in-memory buffer; safe for large files
+        # because Streamlit has already received the bytes before this runs.
+        with open(dest, "wb") as fh:
+            fh.write(uf.getvalue())
         saved_paths.append(dest)
     return saved_paths
 
@@ -337,7 +347,7 @@ def render_upload_panel(backend):
     Renders the file uploader widget + the list of currently loaded docs.
     Returns the list of active file paths to pass to the backend.
     """
-    st.markdown('<p class="upload-header">Documents</p>', unsafe_allow_html=True)
+    st.markdown('<p class="upload-header">📎 Documents</p>', unsafe_allow_html=True)
 
     uploaded = st.file_uploader(
         "Upload files",
