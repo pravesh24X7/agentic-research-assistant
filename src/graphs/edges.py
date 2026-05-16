@@ -18,7 +18,8 @@ def route_search(state: AgentState) -> Literal['search_online', 'summary']:
 
 def build_edges(graph):
     graph.add_edge(START, 'retriever')
-    graph.add_conditional_edges('retriever', route_search, {
+    graph.add_edge('retriever', 'context_builder')
+    graph.add_conditional_edges('context_builder', route_search, {
         'search_online': 'search_online',
         'summary': 'summary'
     })

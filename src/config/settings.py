@@ -1,10 +1,9 @@
 import os
 from dotenv import load_dotenv
 
-
 load_dotenv()
 
-
+UPLOAD_DIRECTORY = "data/interim/"
 SMALL_COLLECTION_NAME = "ai_ml_small"
 SMALL_VECTOR_STORE = "./vector_store_small"
 VECTOR_STORE_DIRECTORY="./vector_store"

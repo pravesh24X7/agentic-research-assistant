@@ -14,3 +14,7 @@ class AgentState(TypedDict):
     iterations: int
     max_iterations: int
     use_web_search: bool
+    uploaded_files: list[str]
+    thread_id: str
+    context: str
+    citations: str

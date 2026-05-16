@@ -30,6 +30,8 @@ st.set_page_config(
 
 import time
 
+from src.config.settings import UPLOAD_DIRECTORY
+
 
 # ─── CSS ─────────────────────────────────────────────────────────────────────
 
@@ -211,6 +213,44 @@ def inject_css():
         font-size:0.82rem !important;
         font-family:'JetBrains Mono',monospace !important;
     }
+
+    /* ── Upload area ── */
+    [data-testid="stFileUploader"] {
+        background:var(--bg-tertiary) !important;
+        border:1px dashed var(--border-gold) !important;
+        border-radius:var(--radius) !important;
+        padding:0.5rem !important;
+    }
+    [data-testid="stFileUploader"] label {
+        color:var(--gold-light) !important;
+        font-family:'JetBrains Mono',monospace !important;
+        font-size:0.78rem !important;
+    }
+    [data-testid="stFileUploader"] section {
+        background:transparent !important;
+        border:none !important;
+    }
+    [data-testid="stFileUploader"] small {
+        color:var(--text-muted) !important;
+    }
+
+    /* ── Uploaded file list item ── */
+    .file-item {
+        display:flex; align-items:center; justify-content:space-between;
+        background:rgba(201,168,76,0.06);
+        border:1px solid var(--border-gold);
+        border-radius:8px; padding:5px 10px; margin:3px 0;
+        font-family:'JetBrains Mono',monospace; font-size:0.7rem;
+        color:var(--gold-light);
+    }
+    .file-item-icon { margin-right:6px; }
+
+    /* ── Upload section header ── */
+    .upload-header {
+        font-family:'JetBrains Mono',monospace; font-size:0.72rem;
+        color:var(--text-muted); text-transform:uppercase;
+        letter-spacing:0.1em; margin:0.4rem 0 0.2rem;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -233,17 +273,18 @@ def get_backend():
 def init_state(backend):
     """Initialise all top-level session_state keys exactly once."""
     if "conversations" not in st.session_state:
-        # list of SessionState objects, newest first
         first = backend.create_session(topic="New Chat")
         st.session_state.conversations = [first]
         st.session_state.active_idx = 0
-        # per-session display messages: { session_id: [msg_dict, ...] }
         st.session_state.display_messages = {first.session_id: []}
 
     if "max_iterations" not in st.session_state:
         st.session_state.max_iterations = 5
     if "use_web_search" not in st.session_state:
         st.session_state.use_web_search = False
+    # Track uploaded file paths per session
+    if "session_uploaded_files" not in st.session_state:
+        st.session_state.session_uploaded_files = {}
 
 
 def active_session():
@@ -258,6 +299,92 @@ def active_messages():
 def push_message(msg_dict: dict):
     sid = active_session().session_id
     st.session_state.display_messages.setdefault(sid, []).append(msg_dict)
+
+
+def active_uploaded_files() -> list[str]:
+    """Return list of already-saved file paths for the active session."""
+    sid = active_session().session_id
+    return st.session_state.session_uploaded_files.get(sid, [])
+
+
+def set_uploaded_files(paths: list[str]):
+    sid = active_session().session_id
+    st.session_state.session_uploaded_files[sid] = paths
+
+
+# ─── Document upload helpers ──────────────────────────────────────────────────
+
+ALLOWED_EXTENSIONS = ["pdf", "txt", "md", "docx", "csv", "json", "html"]
+
+
+def save_uploaded_files(uploaded_file_objects) -> list[str]:
+    """
+    Persist Streamlit UploadedFile objects to UPLOAD_DIRECTORY.
+    Returns list of saved absolute file paths.
+    """
+    os.makedirs(UPLOAD_DIRECTORY, exist_ok=True)
+    saved_paths = []
+    for uf in uploaded_file_objects:
+        dest = os.path.join(UPLOAD_DIRECTORY, uf.name)
+        with open(dest, "wb") as f:
+            f.write(uf.getbuffer())
+        saved_paths.append(dest)
+    return saved_paths
+
+
+def render_upload_panel(backend):
+    """
+    Renders the file uploader widget + the list of currently loaded docs.
+    Returns the list of active file paths to pass to the backend.
+    """
+    st.markdown('<p class="upload-header">📎 Documents</p>', unsafe_allow_html=True)
+
+    uploaded = st.file_uploader(
+        "Upload files",
+        type=ALLOWED_EXTENSIONS,
+        accept_multiple_files=True,
+        key=f"uploader_{active_session().session_id}",
+        label_visibility="collapsed",
+    )
+
+    # Save newly uploaded files and merge with existing session files
+    existing_paths = active_uploaded_files()
+
+    if uploaded:
+        new_names = {os.path.basename(p) for p in existing_paths}
+        truly_new = [uf for uf in uploaded if uf.name not in new_names]
+        if truly_new:
+            new_paths = save_uploaded_files(truly_new)
+            merged = existing_paths + new_paths
+            set_uploaded_files(merged)
+            # Ingest into vector store
+            try:
+                backend.ingest_documents(merged)
+                st.toast(f"✅ {len(truly_new)} file(s) ingested", icon="📚")
+            except Exception as e:
+                st.toast(f"⚠️ Ingest error: {e}", icon="❌")
+            existing_paths = merged
+
+    # Render file chips
+    if existing_paths:
+        for p in existing_paths:
+            fname = os.path.basename(p)
+            ext = fname.rsplit(".", 1)[-1].upper() if "." in fname else "FILE"
+            st.markdown(
+                f'<div class="file-item">'
+                f'<span><span class="file-item-icon">📄</span>{fname}</span>'
+                f'<span style="color:var(--text-muted)">{ext}</span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+        if st.button("🗑  Clear All Documents", key="clear_docs"):
+            set_uploaded_files([])
+            st.rerun()
+    else:
+        st.caption("No documents loaded yet.")
+
+    return existing_paths
 
 
 # ─── Sidebar ─────────────────────────────────────────────────────────────────
@@ -287,7 +414,12 @@ def render_sidebar(backend):
             placeholder="Name this conversation…",
         )
         if new_topic and new_topic != cur.topic:
-            cur.topic = new_topic          # mutate in-place (dataclass)
+            cur.topic = new_topic
+
+        st.divider()
+
+        # ── Document upload panel ─────────────────────────────────────────
+        active_file_paths = render_upload_panel(backend)
 
         st.divider()
 
@@ -320,9 +452,10 @@ def render_sidebar(backend):
         st.divider()
         msgs   = active_messages()
         n_user = sum(1 for m in msgs if m["role"] == "user")
-        c1, c2 = st.columns(2)
+        c1, c2, c3 = st.columns(3)
         c1.metric("Messages", len(msgs))
         c2.metric("Queries",  n_user)
+        c3.metric("Docs", len(active_file_paths))
 
         prompts = backend.list_available_prompts()
         if prompts:
@@ -334,6 +467,8 @@ def render_sidebar(backend):
         st.divider()
         st.caption("Powered by LangGraph · ChromaDB · Groq")
 
+    return active_file_paths
+
 
 # ─── Chat rendering ───────────────────────────────────────────────────────────
 
@@ -343,7 +478,9 @@ def render_welcome():
         <h2>Research Agent</h2>
         <p>An agentic RAG system that iteratively retrieves, critiques,
         and synthesises answers — powered by LangGraph, ChromaDB, and Groq.</p>
-        <p style="margin-top:1rem;color:#484f58 !important;font-size:0.78rem !important;">
+        <p style="margin-top:0.6rem;color:#484f58 !important;font-size:0.78rem !important;">
+        Upload documents via the sidebar, then ask questions about them.</p>
+        <p style="color:#484f58 !important;font-size:0.78rem !important;">
         Try: Attention in Vision Transformers · Diffusion vs GANs · RLHF alignment</p>
     </div>
     """, unsafe_allow_html=True)
@@ -365,19 +502,21 @@ def _render_meta_tags(msg: dict):
         tags.append(f'<span class="meta-tag">Drafts: {msg["draft_count"]}</span>')
     if msg.get("web_search_used"):
         tags.append('<span class="meta-tag">🌐 Web Search</span>')
+    n_docs = msg.get("uploaded_files_count", 0)
+    if n_docs:
+        tags.append(f'<span class="meta-tag">📎 {n_docs} Doc{"s" if n_docs > 1 else ""}</span>')
     if tags:
         st.markdown("".join(tags), unsafe_allow_html=True)
 
 
 # ─── Query handler ────────────────────────────────────────────────────────────
 
-def handle_query(query: str, backend):
+def handle_query(query: str, backend, uploaded_file_paths: list[str]):
     session         = active_session()
     use_web_search  = st.session_state.use_web_search
 
     # Auto-name the conversation from the first query
     if session.topic == "New Chat":
-        # Truncate to ~40 chars for the sidebar label
         session.topic = query[:40] + ("…" if len(query) > 40 else "")
 
     backend.add_user_message(session, query)
@@ -387,14 +526,12 @@ def handle_query(query: str, backend):
         st.markdown(query)
 
     with st.chat_message("assistant"):
-        # Two slots: one for the live stage pill, one for the final answer
         status_slot = st.empty()
-        stages_log  = st.empty()   # optional: shows completed stages as grey text
+        stages_log  = st.empty()
         answer_slot = st.empty()
 
         completed_stages: list[str] = []
         final_text = ""
-        start = time.time()
 
         try:
             for token, status in backend.stream_response(
@@ -402,18 +539,17 @@ def handle_query(query: str, backend):
                 query,
                 max_iterations=st.session_state.max_iterations,
                 use_web_search=use_web_search,
+                uploaded_files=uploaded_file_paths,
             ):
                 if status:
-                    # Show current stage as pulsing pill
                     status_slot.markdown(
                         f'<div class="stage-status">{status}</div>',
                         unsafe_allow_html=True,
                     )
-                    # Accumulate completed stage log shown dimly above
                     completed_stages.append(status)
                     stages_html = "".join(
                         f'<div class="stage-done">✓ {s}</div>'
-                        for s in completed_stages[:-1]   # all but the current one
+                        for s in completed_stages[:-1]
                     )
                     if stages_html:
                         stages_log.markdown(stages_html, unsafe_allow_html=True)
@@ -428,12 +564,10 @@ def handle_query(query: str, backend):
             st.code(traceback.format_exc())
             return
 
-        # Clear live indicators; render final answer once
         status_slot.empty()
         stages_log.empty()
         answer_slot.markdown(final_text)
 
-        # Metadata tags
         final_state = session.workflow.get_state(session.config).values
         iterations  = final_state.get("iterations", 1)
         draft_count = len(final_state.get("draft_answer") or [])
@@ -445,15 +579,19 @@ def handle_query(query: str, backend):
             tags.append(f'<span class="meta-tag">Drafts: {draft_count}</span>')
         if use_web_search:
             tags.append('<span class="meta-tag">🌐 Web Search</span>')
+        if uploaded_file_paths:
+            n = len(uploaded_file_paths)
+            tags.append(f'<span class="meta-tag">📎 {n} Doc{"s" if n > 1 else ""}</span>')
         if tags:
             st.markdown("".join(tags), unsafe_allow_html=True)
 
     push_message({
-        "role":           "assistant",
-        "content":        final_text,
-        "iterations":     iterations,
-        "draft_count":    draft_count,
-        "web_search_used": use_web_search,
+        "role":                 "assistant",
+        "content":              final_text,
+        "iterations":           iterations,
+        "draft_count":          draft_count,
+        "web_search_used":      use_web_search,
+        "uploaded_files_count": len(uploaded_file_paths),
     })
 
 
@@ -474,7 +612,9 @@ def main():
         return
 
     init_state(backend)
-    render_sidebar(backend)
+
+    # render_sidebar also handles upload logic and returns active file paths
+    active_file_paths = render_sidebar(backend)
 
     st.markdown("""
     <div class="main-header">
@@ -490,7 +630,7 @@ def main():
 
     query = st.chat_input("Ask anything about your research domain…")
     if query and query.strip():
-        handle_query(query.strip(), backend)
+        handle_query(query.strip(), backend, active_file_paths)
 
 
 main()
