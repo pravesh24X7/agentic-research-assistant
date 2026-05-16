@@ -1,13 +1,15 @@
 import os
 
 from functools import lru_cache
-from langchain_groq import ChatGroq
-from src.config.settings import LLM_MODEL
+from langchain_google_genai import ChatGoogleGenerativeAI
+from src.config.settings import LLM_MODEL, TEMPERATURE
 
+API_KEY = os.getenv("GOOGLE_API_KEY")
 
-@lru_cache(maxsize=1)       # create once, reuse forever
+@lru_cache(maxsize=1)
 def llm_model():
-    return ChatGroq(
+    return ChatGoogleGenerativeAI(
         model=LLM_MODEL,
-        temperature=0.5,
+        temperature=TEMPERATURE,
+        google_api_key=API_KEY,
     )
