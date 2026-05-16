@@ -2,6 +2,7 @@ from pathlib import Path
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_chroma import Chroma
+from langchain_classic.retrievers import BM25Retriever, EnsembleRetriever
 
 from src.embedding.embedding_model import get_model
 
@@ -57,6 +58,22 @@ def build_uploaded_doc_retriever(
         collection_name=f"session_{session_id}"
     )
 
-    return temp_db.as_retriever(
-        search_kwargs={"k":5}
+    dense_retriever = (
+        temp_db.as_retriever(
+            search_type="mmr",
+            search_kwargs={
+                'k': 10,
+                'fetch_k': 20
+            }
+        )
     )
+
+    bm25_retriever = BM25Retriever.from_documents(all_chunks)
+    bm25_retriever.k = 10
+
+    hybrid_retriever = EnsembleRetriever(retrievers=[
+        dense_retriever, bm25_retriever
+    ],
+    weights=[0.7, 0.3])
+
+    return hybrid_retriever
