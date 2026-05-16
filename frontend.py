@@ -314,7 +314,7 @@ def set_uploaded_files(paths: list[str]):
 
 # ─── Document upload helpers ──────────────────────────────────────────────────
 
-ALLOWED_EXTENSIONS = ["pdf", "txt", "md", "docx", "csv", "json", "html"]
+ALLOWED_EXTENSIONS = ["pdf"]
 
 
 def save_uploaded_files(uploaded_file_objects) -> list[str]:
@@ -337,7 +337,7 @@ def render_upload_panel(backend):
     Renders the file uploader widget + the list of currently loaded docs.
     Returns the list of active file paths to pass to the backend.
     """
-    st.markdown('<p class="upload-header">📎 Documents</p>', unsafe_allow_html=True)
+    st.markdown('<p class="upload-header">Documents</p>', unsafe_allow_html=True)
 
     uploaded = st.file_uploader(
         "Upload files",
@@ -357,11 +357,19 @@ def render_upload_panel(backend):
             new_paths = save_uploaded_files(truly_new)
             merged = existing_paths + new_paths
             set_uploaded_files(merged)
-            # Ingest into vector store
+            # ── Ingest with a live status pill in the sidebar ─────────
+            status_slot = st.empty()
+            def _show_status(msg: str):
+                status_slot.markdown(
+                    f'<div class="stage-status">{msg}</div>',
+                    unsafe_allow_html=True,
+                )
             try:
-                backend.ingest_documents(merged)
+                backend.ingest_documents(merged, status_callback=_show_status)
+                status_slot.empty()
                 st.toast(f"✅ {len(truly_new)} file(s) ingested", icon="📚")
             except Exception as e:
+                status_slot.empty()
                 st.toast(f"⚠️ Ingest error: {e}", icon="❌")
             existing_paths = merged
 

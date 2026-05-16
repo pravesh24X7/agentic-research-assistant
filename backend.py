@@ -1,7 +1,7 @@
 import os
 import uuid
 from dataclasses import dataclass, field
-from typing import Optional, Generator, Tuple, List
+from typing import Optional, Generator, Tuple, List, Callable
 
 from src.graphs.main_graph import build_graph
 from src.utils.generate_uuid import get_unique_id
@@ -102,24 +102,41 @@ class ResearchBackend:
 
     # ── Document ingestion ────────────────────────────────────────────────────
 
-    def ingest_documents(self, file_paths: List[str]) -> None:
+    def ingest_documents(
+        self,
+        file_paths: List[str],
+        status_callback: Optional[Callable[[str], None]] = None,
+    ) -> None:
         """
         Load documents from *file_paths* into the vector store.
 
         Supports PDF, TXT, MD, DOCX, CSV, JSON, and HTML files via
         LangChain community document loaders.  Only files not yet
-        indexed (tracked per session via SessionState.ingested_files)
-        should be passed in – the caller (frontend) is responsible for
+        indexed should be passed in — the caller (frontend) handles
         deduplication; this method ingests everything it receives.
 
-        Raises on loader / vector-store errors so the caller can surface
-        a user-friendly message.
+        status_callback: optional callable(message: str) fired at each
+        key stage (reading, splitting, indexing) so the UI can show a
+        live progress pill without blocking.
+
+        Raises RuntimeError on loader / vector-store failure so the
+        caller can surface a user-friendly message.
         """
         from src.rag.retriever import get_vector_store
 
+        def _status(msg: str):
+            if status_callback:
+                status_callback(msg)
+
         docs = []
-        for path in file_paths:
-            ext = os.path.splitext(path)[-1].lower()
+        total = len(file_paths)
+
+        for idx, path in enumerate(file_paths, start=1):
+            fname = os.path.basename(path)
+            ext   = os.path.splitext(path)[-1].lower()
+
+            _status(f"📖 Reading file {idx}/{total}: {fname}...")
+
             try:
                 if ext == ".pdf":
                     from langchain_community.document_loaders import PyPDFLoader
@@ -135,8 +152,7 @@ class ResearchBackend:
                     loader = CSVLoader(path)
                 elif ext == ".json":
                     from langchain_community.document_loaders import JSONLoader
-                    # Assumes the JSON is an array of objects with a "text" key;
-                    # adjust jq_schema to match your data format.
+                    # Assumes a JSON array; adjust jq_schema for your format.
                     loader = JSONLoader(path, jq_schema=".[]", text_content=False)
                 elif ext in (".html", ".htm"):
                     from langchain_community.document_loaders import UnstructuredHTMLLoader
@@ -146,21 +162,21 @@ class ResearchBackend:
                     continue
 
                 loaded = loader.load()
-                # Tag each document chunk with the source file name
                 for doc in loaded:
-                    doc.metadata.setdefault("source", os.path.basename(path))
+                    doc.metadata.setdefault("source", fname)
                 docs.extend(loaded)
                 self.logger.info(f"Loaded {len(loaded)} chunk(s) from {path}")
 
             except Exception as e:
                 self.logger.error(f"Failed to load {path}: {e}")
-                raise RuntimeError(f"Could not load '{os.path.basename(path)}': {e}") from e
+                raise RuntimeError(f"Could not load '{fname}': {e}") from e
 
         if not docs:
             self.logger.info("No documents to ingest.")
             return
 
-        # Split long documents into overlapping chunks for better retrieval
+        # ── Live status: splitting ─────────────────────────────────────
+        _status(f"✂️  Splitting {len(docs)} page(s) into chunks...")
         try:
             from langchain_classic.text_splitter import RecursiveCharacterTextSplitter
             splitter = RecursiveCharacterTextSplitter(
@@ -174,10 +190,14 @@ class ResearchBackend:
             self.logger.warning(f"Text splitting failed ({e}); using raw docs.")
             split_docs = docs
 
-        # Add to the shared vector store
+        # ── Live status: indexing ──────────────────────────────────────
+        _status(f"💾 Indexing {len(split_docs)} chunks into vector store...")
         vs = get_vector_store()
         vs.add_documents(split_docs)
         self.logger.info(f"Ingested {len(split_docs)} chunks into vector store.")
+
+        # ── Live status: done ──────────────────────────────────────────
+        _status(f"✅ Indexed {len(split_docs)} chunks from {total} file(s).")
 
     # ── Streaming ─────────────────────────────────────────────────────────────
 
@@ -194,9 +214,9 @@ class ResearchBackend:
           (None,  "📚 Retrieving...")  → stage label shown as live pill
           ("text", None)               → final answer text shown once at the end
 
-        uploaded_files: list of absolute file paths that have been saved to
-        disk and ingested into the vector store.  They are forwarded to the
-        graph state so nodes (e.g. retriever) can filter by source if needed.
+        uploaded_files: list of absolute file paths already saved to disk
+        and ingested into the vector store. Forwarded to the graph state
+        so nodes (e.g. retriever) can filter by source if needed.
         """
         uploaded_files = uploaded_files or []
 
