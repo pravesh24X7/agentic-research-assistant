@@ -10,9 +10,19 @@ def perform_evaluation(state: AgentState) -> Literal['approved', 'not_approved']
     ) else 'not_approved'
 
 
+def route_search(state: AgentState) -> Literal['search_online', 'summary']:
+    if state.get('use_web_search', False):
+        return 'search_online'
+    return 'summary'
+
+
 def build_edges(graph):
     graph.add_edge(START, 'retriever')
-    graph.add_edge('retriever', 'summary')
+    graph.add_conditional_edges('retriever', route_search, {
+        'search_online': 'search_online',
+        'summary': 'summary'
+    })
+    graph.add_edge('search_online', 'summary')
     graph.add_edge('summary', 'critique')
     graph.add_conditional_edges('critique', perform_evaluation, 
                                {

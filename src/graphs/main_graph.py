@@ -12,6 +12,7 @@ from src.graphs.nodes import (
     critique,
     synthesiser,
     generate_final_answer,
+    search_online
 )
 from src.config.settings import DB_NAME
 
@@ -38,6 +39,7 @@ def build_graph():
 
     # Nodes
     graph.add_node("retriever", retriever)
+    graph.add_node("search_online", search_online)
     graph.add_node("summary", summary)
     graph.add_node("critique", critique)
     graph.add_node("synthesiser", synthesiser)
