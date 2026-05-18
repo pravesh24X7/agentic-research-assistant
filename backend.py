@@ -67,12 +67,27 @@ class ResearchBackend:
 
     @staticmethod
     def prewarm():
+        """Load all models into cache at startup — not on first query."""
         from src.rag.retriever import get_vector_store
         from src.model.chat_model import llm_model
-        from src.rag.uploaded_doc import build_uploaded_doc_retriever
+        from src.graphs.nodes import get_cross_encoder, get_compressor
+        from src.graphs.nodes import get_base_compression_retriever
+
+        print("Pre-warming vector store...")
         get_vector_store()
-        build_uploaded_doc_retriever(uploaded_files=(), session_id='default')
+
+        print("Pre-warming LLM...")
         llm_model()
+
+        print("Pre-warming cross-encoder...")
+        get_cross_encoder()
+
+        print("Pre-warming compressor...")
+        get_compressor()
+
+        print("Pre-warming base compression retriever...")
+        get_base_compression_retriever()
+
 
     @staticmethod
     def ensure_prompts():

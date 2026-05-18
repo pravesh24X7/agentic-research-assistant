@@ -66,14 +66,14 @@ def build_uploaded_doc_retriever(
         temp_db.as_retriever(
             search_type="mmr",
             search_kwargs={
-                'k': 5,
-                'fetch_k': 10
+                'k': 3,
+                'fetch_k': 8
             }
         )
     )
 
     bm25_retriever = BM25Retriever.from_documents(all_chunks)
-    bm25_retriever.k = 5
+    bm25_retriever.k = 3
 
     hybrid_retriever = EnsembleRetriever(retrievers=[
         dense_retriever, bm25_retriever

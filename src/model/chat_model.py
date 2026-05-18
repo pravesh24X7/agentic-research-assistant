@@ -5,7 +5,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 from src.config.settings import LLM_MODEL, TEMPERATURE
 
-# API_KEY = os.getenv("GOOGLE_API_KEY")
+API_KEY = os.getenv("GOOGLE_API_KEY")
 
 @lru_cache(maxsize=1)
 def llm_model():

@@ -21,7 +21,7 @@ def get_retriever():
     return get_vector_store().as_retriever(
         search_type="mmr",
         search_kwargs={
-            'k': 5,
-            'fetch_k': 10
+            'k': 3,
+            'fetch_k': 8
         }
     )

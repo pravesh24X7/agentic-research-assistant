@@ -48,14 +48,14 @@ def build_context(state: AgentState):
 
 @lru_cache(maxsize=1)
 def get_cross_encoder():
-    return HuggingFaceCrossEncoder(model_name='BAAI/bge-reranker-base')
+    return HuggingFaceCrossEncoder(model_name='cross-encoder/ms-marco-MiniLM-L-6-v2')
 
 
 @lru_cache(maxsize=1)
 def get_compressor():
     return CrossEncoderReranker(
         model=get_cross_encoder(),
-        top_n=5
+        top_n=3
     )
 
 
