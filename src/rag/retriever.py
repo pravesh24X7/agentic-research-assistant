@@ -22,6 +22,6 @@ def get_retriever():
         search_type="mmr",
         search_kwargs={
             'k': 5,
-            'fetch_k': 15
+            'fetch_k': 10
         }
     )

@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 from pathlib import Path
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -6,12 +8,14 @@ from langchain_classic.retrievers import BM25Retriever, EnsembleRetriever
 
 from src.embedding.embedding_model import get_model
 
-
+@lru_cache(maxsize=1)
 def build_uploaded_doc_retriever(
-        uploaded_files,
-        session_id
+        uploaded_files: tuple,
+        session_id: str
 ):
-
+    
+    uploaded_files = list(uploaded_files)
+    
     if not uploaded_files:
         return None
 
@@ -62,14 +66,14 @@ def build_uploaded_doc_retriever(
         temp_db.as_retriever(
             search_type="mmr",
             search_kwargs={
-                'k': 10,
-                'fetch_k': 20
+                'k': 5,
+                'fetch_k': 10
             }
         )
     )
 
     bm25_retriever = BM25Retriever.from_documents(all_chunks)
-    bm25_retriever.k = 10
+    bm25_retriever.k = 5
 
     hybrid_retriever = EnsembleRetriever(retrievers=[
         dense_retriever, bm25_retriever

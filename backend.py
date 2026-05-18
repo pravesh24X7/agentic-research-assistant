@@ -69,7 +69,9 @@ class ResearchBackend:
     def prewarm():
         from src.rag.retriever import get_vector_store
         from src.model.chat_model import llm_model
+        from src.rag.uploaded_doc import build_uploaded_doc_retriever
         get_vector_store()
+        build_uploaded_doc_retriever(uploaded_files=(), session_id='default')
         llm_model()
 
     @staticmethod

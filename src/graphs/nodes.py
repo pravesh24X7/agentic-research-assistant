@@ -1,6 +1,7 @@
 import json
 import time
 
+from functools import lru_cache
 from langchain_classic.retrievers import EnsembleRetriever
 from langchain_classic.retrievers import ContextualCompressionRetriever
 from langchain_community.cross_encoders import HuggingFaceCrossEncoder
@@ -39,10 +40,23 @@ def build_context(state: AgentState):
         """
 
         citation.append({"source": source, "page": page, "chunk": chunk})
-        return {
-            "context": context,
-            "citations": citation
-        }
+    return {
+        "context": context,
+        "citations": citation
+    }
+
+
+@lru_cache(maxsize=1)
+def get_cross_encoder():
+    return HuggingFaceCrossEncoder(model_name='BAAI/bge-reranker-base')
+
+
+@lru_cache(maxsize=1)
+def get_compressor():
+    return CrossEncoderReranker(
+        model=get_cross_encoder(),
+        top_n=5
+    )
 
 
 @traceable(name="search_engine_node", metadata={"stage": "evaluation"})
@@ -50,39 +64,39 @@ def search_online(state: AgentState) -> dict:
     search_results = search_tool.invoke({"search_query": state['query']})
     return {'search_results': search_results}
 
+@lru_cache(maxsize=1)
+def get_base_compression_retriever():
+    """Cache the retriever without uploaded docs."""
+    r = get_retriever()
+    compressor = get_compressor()
+    return ContextualCompressionRetriever(
+        base_compressor=compressor,
+        base_retriever=r
+    )
 
 @traceable(name='retrieval_node', metadata={"stage": "evaluation"})
 def retriever(state: AgentState) -> dict:
     query = state['query']
-    r = get_retriever()     # normal retriever
-    uploaded_doc_retriever = (
-        build_uploaded_doc_retriever(
-            uploaded_files=state.get("uploaded_files", []),
+    uploaded_files = tuple(state.get("uploaded_files", []))
+    
+    if uploaded_files:
+        r = get_retriever()
+        uploaded_doc_retriever = build_uploaded_doc_retriever(
+            uploaded_files=uploaded_files,
             session_id=state.get("thread_id", "default")
         )
-    )
+        combined = EnsembleRetriever(
+            retrievers=[r, uploaded_doc_retriever],
+            weights=[0.6, 0.4]
+        )
+        compressor = get_compressor()
+        compression_retriever = ContextualCompressionRetriever(
+            base_compressor=compressor,
+            base_retriever=combined
+        )
+    else:
+        compression_retriever = get_base_compression_retriever()
     
-    retrievers = [r]
-    weights = [0.6]
-
-    if uploaded_doc_retriever:
-        retrievers.append(uploaded_doc_retriever)
-        weights.append(0.4)
-    
-    combined = EnsembleRetriever(
-        retrievers=retrievers,
-        weights=weights
-    )
-
-    cross_encoder = HuggingFaceCrossEncoder(model_name='BAAI/bge-reranker-base')
-    
-    compressor = CrossEncoderReranker(model=cross_encoder,
-                                      top_n=10)
-    compression_retriever = (ContextualCompressionRetriever(
-        base_compressor=compressor,
-        base_retriever=combined
-    ))
-
     docs = compression_retriever.invoke(query)
     return {'retrieved_docs': docs}
 
@@ -98,25 +112,26 @@ def summary(state: AgentState) -> dict:
     citations = state.get('citations', [])
     citation_text = ""
 
-    for i, c in enumerate(citations):
-        citation_text += f"""
-            [{i+1}]
-            Source: {c.get('source')}
-            Page: {c.get('page')}
-            Chunk: {c.get('chunk')}
-        """
+    if citations:
+        for i, c in enumerate(citations):
+            citation_text += f"""
+                [{i+1}]
+                Source: {c.get('source')}
+                Page: {c.get('page')}
+                Chunk: {c.get('chunk')}
+            """
 
-    result = execution_chain.invoke(
-        {
-            "query": state['query'],
-            "retrieved_docs": combined_context,
-            "citation_info": citation_text
-        },
-        config={
-            'tags': ['summary'],
-            'metadata': {'iterations': state['iterations']},
-        },
-    )
+        result = execution_chain.invoke(
+            {
+                "query": state['query'],
+                "retrieved_docs": combined_context,
+                "citation_info": citation_text
+            },
+            config={
+                'tags': ['summary'],
+                'metadata': {'iterations': state['iterations']},
+            },
+        )
     return {'draft_answer': [str(result)]}
 
 
