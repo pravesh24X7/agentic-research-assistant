@@ -8,7 +8,7 @@ def search_engine(search_query: str) -> str:
     Takes search query and returns the answers after searching them on web.
     """
 
-    search_tool = TavilySearchResults(max_results=10)
+    search_tool = TavilySearchResults(max_results=3)
     results = search_tool.invoke({
         'query': search_query
     })

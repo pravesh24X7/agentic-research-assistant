@@ -221,3 +221,4 @@ notes/
 vector_store/
 pyproject.toml
 poetry.lock
+db/*.*
